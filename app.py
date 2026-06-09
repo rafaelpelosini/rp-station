@@ -18,112 +18,108 @@ st.set_page_config(
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 * { font-family: 'Inter', sans-serif !important; }
 
-/* Fundo geral */
-.stApp { background-color: #F5F7F9 !important; }
-[data-testid="stAppViewContainer"] { background-color: #F5F7F9 !important; }
+.stApp, [data-testid="stAppViewContainer"] { background-color: #F9FAFB !important; }
 
-/* Esconde sidebar toggle */
-[data-testid="collapsedControl"] { display: none !important; }
+[data-testid="collapsedControl"],
 [data-testid="stSidebar"] { display: none !important; }
 
-/* Tabs — estilo nav bar */
+/* ── Tabs ── */
 [data-testid="stTabs"] [role="tablist"] {
     background: #FFFFFF;
-    border-bottom: 1px solid #E8EAED;
-    padding: 0 8px;
+    border-bottom: 1px solid #E5E7EB;
+    padding: 0 16px;
     gap: 0;
 }
 [data-testid="stTabs"] [role="tab"] {
-    color: #5F6B7A !important;
-    font-weight: 500 !important;
-    font-size: 0.88rem !important;
-    padding: 12px 20px !important;
+    color: #9CA3AF !important;
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+    padding: 20px 28px !important;
     border-bottom: 2px solid transparent !important;
     border-radius: 0 !important;
     background: transparent !important;
 }
 [data-testid="stTabs"] [role="tab"][aria-selected="true"] {
-    color: #0090A8 !important;
-    border-bottom: 2px solid #0090A8 !important;
-    font-weight: 600 !important;
+    color: #111827 !important;
+    border-bottom: 2px solid #111827 !important;
 }
-[data-testid="stTabs"] [role="tab"]:hover {
-    color: #0090A8 !important;
-    background: #F0FAFB !important;
-}
-[data-testid="stTabsContent"] {
-    padding-top: 24px !important;
-}
+[data-testid="stTabs"] [role="tab"]:hover { color: #374151 !important; background: #F3F4F6 !important; }
+[data-testid="stTabsContent"] { padding-top: 40px !important; }
 
-/* Metric cards */
+/* ── Metric cards — oversized ── */
 [data-testid="metric-container"] {
     background: #FFFFFF;
-    border: 1px solid #E8EAED;
-    border-radius: 8px;
-    padding: 20px 24px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-}
-[data-testid="stMetricValue"]  { color: #1C2B3A !important; font-weight: 700 !important; font-size: 1.6rem !important; }
-[data-testid="stMetricLabel"]  { color: #7A8899 !important; font-size: 0.78rem !important; text-transform: uppercase; letter-spacing: 0.05em; }
-[data-testid="stMetricDelta"]  { font-size: 0.78rem !important; }
-
-/* Títulos */
-h1 { color: #1C2B3A !important; font-weight: 700 !important; font-size: 1.3rem !important; }
-h2 { color: #1C2B3A !important; font-weight: 600 !important; font-size: 1.1rem !important; }
-h3 { color: #3D4F60 !important; font-weight: 500 !important; font-size: 0.92rem !important; }
-
-/* Botões */
-.stButton > button {
-    background-color: #0090A8 !important;
-    color: #fff !important;
     border: none !important;
-    border-radius: 6px !important;
-    font-weight: 600 !important;
-    font-size: 0.84rem !important;
-    padding: 6px 16px !important;
-    transition: background 0.15s;
+    border-top: 3px solid #111827 !important;
+    border-radius: 0 !important;
+    padding: 28px 24px 24px !important;
+    box-shadow: none !important;
 }
-.stButton > button:hover { background-color: #007891 !important; }
+[data-testid="stMetricValue"] {
+    color: #111827 !important;
+    font-weight: 800 !important;
+    font-size: 2.8rem !important;
+    letter-spacing: -0.03em !important;
+    line-height: 1 !important;
+}
+[data-testid="stMetricLabel"] {
+    color: #9CA3AF !important;
+    font-size: 0.68rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    font-weight: 600 !important;
+}
+[data-testid="stMetricDelta"] { font-size: 0.75rem !important; color: #6B7280 !important; }
 
-/* Botão de download */
+/* ── Typography ── */
+h1 { color: #111827 !important; font-weight: 900 !important; font-size: 2rem !important; letter-spacing: -0.03em !important; }
+h2 { color: #111827 !important; font-weight: 800 !important; font-size: 1.4rem !important; letter-spacing: -0.02em !important; }
+h3 { color: #374151 !important; font-weight: 700 !important; font-size: 1rem !important; letter-spacing: -0.01em !important; }
+
+/* ── Buttons ── */
+.stButton > button {
+    background-color: #111827 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    border-radius: 2px !important;
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    padding: 10px 20px !important;
+}
+.stButton > button:hover { background-color: #1F2937 !important; }
+
 [data-testid="stDownloadButton"] > button {
     background-color: #FFFFFF !important;
-    color: #0090A8 !important;
-    border: 1px solid #C8D8DC !important;
-    border-radius: 6px !important;
-    font-weight: 600 !important;
-    font-size: 0.84rem !important;
+    color: #111827 !important;
+    border: 1.5px solid #111827 !important;
+    border-radius: 2px !important;
+    font-weight: 700 !important;
+    font-size: 0.72rem !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
 }
-[data-testid="stDownloadButton"] > button:hover { background-color: #F0FAFB !important; }
+[data-testid="stDownloadButton"] > button:hover { background-color: #111827 !important; color: #FFFFFF !important; }
 
-/* Dividers */
-hr { border-color: #E8EAED; margin: 10px 0 18px 0; }
-
-/* Section card */
-.section-card {
-    background: #FFFFFF;
-    border: 1px solid #E8EAED;
-    border-radius: 8px;
-    padding: 20px 24px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-    margin-bottom: 16px;
-}
-
-/* Dataframe */
-[data-testid="stDataFrame"] { border: 1px solid #E8EAED; border-radius: 8px; }
-
-/* Inputs */
+/* ── Misc ── */
+hr { border-color: #E5E7EB !important; margin: 24px 0 32px 0 !important; }
+[data-testid="stDataFrame"] { border: 1px solid #E5E7EB !important; border-radius: 0 !important; }
 [data-testid="stSelectbox"] > div > div,
 [data-testid="stNumberInput"] input,
 [data-testid="stTextInput"] input {
-    border-radius: 6px !important;
-    border-color: #D1D9E0 !important;
+    border-radius: 2px !important;
+    border-color: #E5E7EB !important;
     background: #FFFFFF !important;
     font-size: 0.88rem !important;
+    color: #111827 !important;
 }
+[data-testid="stCaptionContainer"] p { color: #9CA3AF !important; font-size: 0.72rem !important; }
 
 #MainMenu, footer, header { visibility: hidden; }
 </style>
@@ -412,6 +408,18 @@ _SORT_OPTIONS = {
     "Score AC (maior primeiro)":       ("score",         True),
 }
 
+@st.cache_data(ttl=60)
+def search_contacts(query: str):
+    sb = get_sb()
+    q = query.strip()
+    r = (sb.table("v_buyer_segments")
+         .select("email,first_name,last_name,state,opt_in,tier,rfm_score,total_compras,purchases_vnda,revenue_vnda,ultimo_pedido")
+         .or_(f"email.ilike.%{q}%,first_name.ilike.%{q}%,last_name.ilike.%{q}%")
+         .order("rfm_score", desc=True)
+         .limit(200)
+         .execute())
+    return pd.DataFrame(r.data)
+
 @st.cache_data(ttl=600)
 def load_contacts_page(page=0, page_size=100, opt_in_filter=None, sort_col="rfm_score", sort_desc=True):
     sb = get_sb()
@@ -480,8 +488,8 @@ hcol1, hcol2 = st.columns([6, 1])
 with hcol1:
     st.markdown("""
     <div style='display:flex; align-items:center; gap:12px; padding: 8px 0 16px 0;'>
-        <div style='background:#0090A8; color:#fff; border-radius:8px; width:36px; height:36px;
-                    display:flex; align-items:center; justify-content:center; font-size:0.95rem; font-weight:700; flex-shrink:0;'>
+        <div style='background:#111827; color:#fff; border-radius:2px; width:40px; height:40px;
+                    display:flex; align-items:center; justify-content:center; font-size:0.95rem; font-weight:800; flex-shrink:0;'>
             RP
         </div>
         <div>
@@ -496,7 +504,7 @@ with hcol2:
         st.rerun()
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊  Overview", "👥  Contatos", "🏷️  Tags", "📤  Exportações", "🟠  RD Station", "📋  Playbook"])
+tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Contatos", "RD Station", "Playbook"])
 
 # ─── OVERVIEW ────────────────────────────────────────────────────────────────
 with tab1:
@@ -543,13 +551,13 @@ with tab1:
     with col_tier:
         st.markdown("### Ciclo de vida")
         _TIER_COLORS = {
-            "Campeão":   "#059669",
-            "Leal":      "#10B981",
-            "Novo":      "#22D3EE",
-            "Promissor": "#60A5FA",
-            "Em risco":  "#EF4444",
-            "Atenção":   "#FB923C",
-            "Hibernando":"#94A3B8",
+            "Campeão":   "#111827",
+            "Leal":      "#1F2937",
+            "Novo":      "#374151",
+            "Promissor": "#4B5563",
+            "Em risco":  "#374151",
+            "Atenção":   "#6B7280",
+            "Hibernando":"#9CA3AF",
         }
         _TIER_ORDER = ["Campeão","Leal","Novo","Promissor","Em risco","Atenção","Hibernando"]
         n_leads = tier_counts.get("Lead", 0)
@@ -584,7 +592,7 @@ with tab1:
         })
         fig_optin = px.pie(
             df_optin_pie, names="Status", values="Total",
-            color_discrete_sequence=["#0090A8", "#CBD5E1", "#EF4444"],
+            color_discrete_sequence=["#111827", "#9CA3AF", "#E5E7EB"],
             hole=0.62,
         )
         fig_optin.update_traces(textposition="outside", textinfo="percent")
@@ -629,7 +637,7 @@ with tab1:
         df_r = pd.DataFrame(r_labels, columns=["Recência", "Contatos"])
         fig_r = px.bar(
             df_r, x="Contatos", y="Recência", orientation="h",
-            color_discrete_sequence=["#0090A8"],
+            color_discrete_sequence=["#111827"],
         )
         fig_r.update_layout(
             height=260, margin=dict(t=5, b=5, l=5, r=10),
@@ -650,7 +658,7 @@ with tab1:
         df_f = pd.DataFrame(f_labels, columns=["Frequência", "Contatos"])
         fig_f = px.bar(
             df_f, x="Frequência", y="Contatos",
-            color_discrete_sequence=["#0090A8"],
+            color_discrete_sequence=["#111827"],
         )
         fig_f.update_layout(
             height=260, margin=dict(t=5, b=5, l=5, r=5),
@@ -671,7 +679,7 @@ with tab1:
         df_v = pd.DataFrame(v_labels, columns=["Valor", "Contatos"])
         fig_v = px.bar(
             df_v, x="Valor", y="Contatos",
-            color_discrete_sequence=["#0090A8"],
+            color_discrete_sequence=["#111827"],
         )
         fig_v.update_layout(
             height=260, margin=dict(t=5, b=5, l=5, r=5),
@@ -687,7 +695,7 @@ with tab1:
         if not df_st.empty:
             fig_st = px.bar(
                 df_st.head(5), x="total", y="state", orientation="h",
-                color_discrete_sequence=["#0090A8"],
+                color_discrete_sequence=["#111827"],
             )
             fig_st.update_layout(
                 height=260, margin=dict(t=5, b=5, l=5, r=10),
@@ -709,7 +717,7 @@ with tab1:
             labels=["Feminino", "Masculino"],
             values=[f_n, m_n],
             hole=0.62,
-            marker_colors=["#E879A0", "#60A5FA"],
+            marker_colors=["#111827", "#9CA3AF"],
             textinfo="percent",
             textposition="outside",
         ))
@@ -733,7 +741,7 @@ with tab1:
         if not df_age.empty:
             fig_age = px.bar(
                 df_age, x="Contatos", y="Faixa", orientation="h",
-                color_discrete_sequence=["#0090A8"],
+                color_discrete_sequence=["#111827"],
                 text=df_age["Contatos"].apply(lambda x: f"{x:,}"),
             )
             fig_age.update_traces(textposition="outside")
@@ -766,7 +774,7 @@ with tab1:
                 x=df_prod_chart["Compradores"],
                 y=df_prod_chart["Produto"],
                 orientation="h",
-                marker_color="#0090A8",
+                marker_color="#111827",
                 text=df_prod_chart["Label"],
                 textposition="outside",
             ))
@@ -788,26 +796,29 @@ with tab1:
 
 # ─── CONTATOS ────────────────────────────────────────────────────────────────
 with tab2:
-    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
-    with col1:
-        opt_filter = st.selectbox(
-            "Opt-In",
-            ["Todos", "Ok", "Sim", "Yes", "OptNewsVNDA", "OptTidio", "OptShopify", "optBlog", "No", "(vazio)"]
-        )
-    with col2:
-        sort_label = st.selectbox("Ordenar por", list(_SORT_OPTIONS.keys()))
-    with col3:
-        src_filter = st.selectbox("Fonte", ["Todos", "Só AC", "Só VNDA", "Ambos"])
-    with col4:
-        page_num = st.number_input("Página", min_value=0, value=0, step=1)
+    search_q = st.text_input("", placeholder="Buscar por nome ou e-mail…", label_visibility="collapsed")
 
-    sort_col, sort_desc = _SORT_OPTIONS[sort_label]
-    df = load_contacts_page(
-        page=page_num,
-        opt_in_filter=None if opt_filter == "Todos" else opt_filter,
-        sort_col=sort_col,
-        sort_desc=sort_desc,
-    )
+    if search_q and len(search_q) >= 2:
+        df = search_contacts(search_q)
+    else:
+        col1, col2, col3 = st.columns([2, 2, 1])
+        with col1:
+            opt_filter = st.selectbox(
+                "Opt-In",
+                ["Todos", "Ok", "Sim", "Yes", "OptNewsVNDA", "OptTidio", "OptShopify", "optBlog", "No", "(vazio)"]
+            )
+        with col2:
+            sort_label = st.selectbox("Ordenar por", list(_SORT_OPTIONS.keys()))
+        with col3:
+            page_num = st.number_input("Página", min_value=0, value=0, step=1)
+
+        sort_col, sort_desc = _SORT_OPTIONS[sort_label]
+        df = load_contacts_page(
+            page=page_num,
+            opt_in_filter=None if opt_filter == "Todos" else opt_filter,
+            sort_col=sort_col,
+            sort_desc=sort_desc,
+        )
 
     if not df.empty:
         df.columns = ["Email", "Nome", "Sobrenome", "Estado", "Opt-In",
@@ -836,34 +847,8 @@ with tab2:
         st.info("Nenhum contato encontrado com esses filtros.")
 
 # ─── TAGS ────────────────────────────────────────────────────────────────────
-with tab3:
-    df_tags = load_top_tags(60)
-
-    search = st.text_input("Buscar tag", placeholder="ex: RP_Clientes, shopify...")
-    if search:
-        df_tags = df_tags[df_tags["tag"].str.contains(search, case=False, na=False)]
-
-    if not df_tags.empty:
-        fig = px.bar(
-            df_tags.head(40), x="total", y="tag", orientation="h",
-            color="total",
-            color_continuous_scale=["#99DDE8", "#0090A8", "#005F70"],
-            labels={"total": "Contatos", "tag": ""},
-        )
-        fig.update_layout(
-            margin=dict(t=10, b=10, l=10, r=20),
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            height=max(400, len(df_tags.head(40)) * 22),
-            yaxis=dict(autorange="reversed"),
-            coloraxis_showscale=False,
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.markdown(f"**{len(df_tags)} tags** encontradas")
-        st.dataframe(df_tags, use_container_width=True, height=300)
-
 # ─── RD STATION ──────────────────────────────────────────────────────────────
-with tab5:
+with tab3:
     days_range = st.select_slider("Período", options=[7, 14, 30, 60, 90], value=30, key="rd_days")
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -903,7 +888,7 @@ with tab5:
         st.markdown("### Segmentações")
         if segments:
             for s in segments:
-                status_color = "#0090A8" if s.get("process_status") == "processed" else "#FB923C"
+                status_color = "#111827" if s.get("process_status") == "processed" else "#6B7280"
                 badge = "✓" if s.get("process_status") == "processed" else "⏳"
                 standard = " · padrão" if s.get("standard") else ""
                 st.markdown(
@@ -929,34 +914,10 @@ with tab5:
         df_em = pd.DataFrame(email["emails"])
         st.dataframe(df_em, use_container_width=True, height=250)
 
-    st.markdown(
-        "<div style='margin-top:20px; padding:10px 14px; background:#F0FAFB; border:1px solid #C8E8ED; "
-        "border-radius:6px; font-size:0.78rem; color:#5F6B7A;'>"
-        f"🔗 Worker: <code>{_WORKER_URL}</code> · Cache: 3 min"
-        "</div>",
-        unsafe_allow_html=True
-    )
-
-# ─── EXPORTAÇÕES ─────────────────────────────────────────────────────────────
-with tab4:
-    sb = get_sb()
-    res = sb.table("rd_exports").select("*").order("exported_at", desc=True).limit(50).execute()
-
-    if res.data:
-        df_exp = pd.DataFrame(res.data)
-        st.dataframe(df_exp, use_container_width=True)
-    else:
-        st.info("Nenhuma exportação registrada ainda.")
-        st.markdown("""
-        <div class='section-card'>
-            <h4>Como exportar para o RD Station</h4>
-            <p>Em breve: selecione um segmento na aba <b>Contatos</b> e clique em <b>Enviar para RD Station</b>.</p>
-            <p>Por enquanto, use o botão <b>Exportar CSV</b> na aba Contatos e importe manualmente no RD Station.</p>
-        </div>
-        """, unsafe_allow_html=True)
+    st.caption(f"Worker: {_WORKER_URL} · Cache: 3 min")
 
 # ─── PLAYBOOK ─────────────────────────────────────────────────────────────────
-with tab6:
+with tab4:
     _tc6 = load_tier_counts()
     _ov6 = load_overview()
     _tot6 = _ov6.get("total_contacts", 0) or 1
