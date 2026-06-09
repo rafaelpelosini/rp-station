@@ -414,6 +414,7 @@ def search_contacts(query: str):
     q = query.strip()
     r = (sb.table("v_buyer_segments")
          .select("email,first_name,last_name,state,opt_in,tier,rfm_score,total_compras,purchases_vnda,revenue_vnda,ultimo_pedido")
+         .in_("opt_in", _OPT_IN_VALID_LIST)
          .or_(f"email.ilike.%{q}%,first_name.ilike.%{q}%,last_name.ilike.%{q}%")
          .order("rfm_score", desc=True)
          .limit(200)
@@ -421,14 +422,12 @@ def search_contacts(query: str):
     return pd.DataFrame(r.data)
 
 @st.cache_data(ttl=600)
-def load_contacts_page(page=0, page_size=100, opt_in_filter=None, sort_col="rfm_score", sort_desc=True):
+def load_contacts_page(page=0, page_size=100, sort_col="rfm_score", sort_desc=True):
     sb = get_sb()
-    q = sb.table("v_buyer_segments").select(
-        "email,first_name,last_name,state,opt_in,"
-        "tier,rfm_score,total_compras,purchases_vnda,revenue_vnda,ultimo_pedido"
-    )
-    if opt_in_filter and opt_in_filter != "Todos":
-        q = q.eq("opt_in", opt_in_filter)
+    q = (sb.table("v_buyer_segments")
+         .select("email,first_name,last_name,state,opt_in,"
+                 "tier,rfm_score,total_compras,purchases_vnda,revenue_vnda,ultimo_pedido")
+         .in_("opt_in", _OPT_IN_VALID_LIST))
     if sort_col == "ultimo_pedido":
         q = q.not_.is_("ultimo_pedido", "null")
     q = q.order(sort_col, desc=sort_desc)
@@ -801,24 +800,14 @@ with tab2:
     if search_q and len(search_q) >= 2:
         df = search_contacts(search_q)
     else:
-        col1, col2, col3 = st.columns([2, 2, 1])
+        col1, col2 = st.columns([3, 1])
         with col1:
-            opt_filter = st.selectbox(
-                "Opt-In",
-                ["Todos", "Ok", "Sim", "Yes", "OptNewsVNDA", "OptTidio", "OptShopify", "optBlog", "No", "(vazio)"]
-            )
-        with col2:
             sort_label = st.selectbox("Ordenar por", list(_SORT_OPTIONS.keys()))
-        with col3:
+        with col2:
             page_num = st.number_input("Página", min_value=0, value=0, step=1)
 
         sort_col, sort_desc = _SORT_OPTIONS[sort_label]
-        df = load_contacts_page(
-            page=page_num,
-            opt_in_filter=None if opt_filter == "Todos" else opt_filter,
-            sort_col=sort_col,
-            sort_desc=sort_desc,
-        )
+        df = load_contacts_page(page=page_num, sort_col=sort_col, sort_desc=sort_desc)
 
     if not df.empty:
         df.columns = ["Email", "Nome", "Sobrenome", "Estado", "Opt-In",
