@@ -316,6 +316,50 @@ def load_rfm_dist():
     v_agg = df.groupby("val")["total"].sum().to_dict()
     return r_agg, f_agg, v_agg
 
+@st.cache_data(ttl=3600)
+def load_slot_counts():
+    sb = get_sb()
+    _valid = ["Ok","Sim","Yes","OptNewsVNDA","OptTidio","OptShopify","optBlog","OptVNDA","Investor List","Reserva Horta"]
+    r_hib  = (sb.table("v_buyer_segments").select("id", count="exact")
+               .eq("tier","Hibernando").in_("val",["V3","V4"]).execute())
+    r_lead = (sb.table("v_buyer_segments").select("id", count="exact")
+               .eq("tier","Lead").in_("opt_in",_valid).execute())
+    return (r_hib.count or 0), (r_lead.count or 0)
+
+_OPT_IN_VALID_LIST = ["Ok","Sim","Yes","OptNewsVNDA","OptTidio","OptShopify",
+                      "optBlog","OptVNDA","Investor List","Reserva Horta"]
+_EXPORT_COLS = "email,first_name,last_name,tier,rfm_score,opt_in,ultimo_pedido,revenue_vnda,total_compras"
+
+@st.cache_data(ttl=3600)
+def _export_segments(tiers: tuple, val_filter: tuple = ()):
+    sb = get_sb()
+    PAGE = 1000; offset = 0; rows = []
+    while True:
+        q = (sb.table("v_buyer_segments")
+             .select(_EXPORT_COLS)
+             .in_("tier", list(tiers))
+             .in_("opt_in", _OPT_IN_VALID_LIST)
+             .order("rfm_score", desc=True))
+        if val_filter:
+            q = q.in_("val", list(val_filter))
+        r = q.range(offset, offset + PAGE - 1).execute()
+        if not r.data: break
+        rows.extend(r.data)
+        if len(r.data) < PAGE: break
+        offset += PAGE
+    if not rows:
+        return b"", 0
+    df = pd.DataFrame(rows)
+    df = df.rename(columns={
+        "first_name": "Nome", "last_name": "Sobrenome",
+        "tier": "Tier", "rfm_score": "RFM Score", "opt_in": "Opt-In",
+        "ultimo_pedido": "Ultimo Pedido", "revenue_vnda": "Receita VNDA",
+        "total_compras": "Total Compras",
+    })
+    df["Ultimo Pedido"] = (pd.to_datetime(df["Ultimo Pedido"], errors="coerce")
+                           .dt.strftime("%d/%m/%Y").fillna(""))
+    return df.to_csv(index=False).encode("utf-8"), len(df)
+
 _PROD_LABEL = {
     "RP_Clientes_Bokashi":          "Bokashi",
     "RP_Clientes_MixdePlantio":     "Mix de Plantio",
@@ -452,7 +496,7 @@ with hcol2:
         st.rerun()
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊  Overview", "👥  Contatos", "🏷️  Tags", "📤  Exportações", "🟠  RD Station"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊  Overview", "👥  Contatos", "🏷️  Tags", "📤  Exportações", "🟠  RD Station", "📋  Playbook"])
 
 # ─── OVERVIEW ────────────────────────────────────────────────────────────────
 with tab1:
@@ -910,3 +954,161 @@ with tab4:
             <p>Por enquanto, use o botão <b>Exportar CSV</b> na aba Contatos e importe manualmente no RD Station.</p>
         </div>
         """, unsafe_allow_html=True)
+
+# ─── PLAYBOOK ─────────────────────────────────────────────────────────────────
+with tab6:
+    _tc6 = load_tier_counts()
+    _ov6 = load_overview()
+    _tot6 = _ov6.get("total_contacts", 0) or 1
+    n_hib_prem, n_leads_opt = load_slot_counts()
+
+    st.markdown("## Playbook — 180 dias")
+    st.caption("Guia de execução para a equipe · Limite RD Station: 10.000 leads ativos")
+    st.markdown("---")
+
+    # ── Alocação dos 10k slots ─────────────────────────────────────────────────
+    st.markdown("### Alocação dos 10k slots")
+
+    _n_clnn  = _tc6.get("Campeão",0) + _tc6.get("Leal",0) + _tc6.get("Novo",0)
+    _n_risk  = _tc6.get("Em risco",0)
+    _n_pa    = _tc6.get("Promissor",0) + _tc6.get("Atenção",0)
+    _n_leads_slots = max(0, 10000 - _n_clnn - _n_risk - _n_pa - n_hib_prem)
+    _total_alloc = _n_clnn + _n_risk + _n_pa + n_hib_prem + min(n_leads_opt, _n_leads_slots)
+
+    sa1, sa2, sa3, sa4, sa5 = st.columns(5)
+    sa1.metric("Campeão + Leal + Novo",  f"{_n_clnn:,}".replace(",","."),  "Proteger e upsell")
+    sa2.metric("Em risco",               f"{_n_risk:,}".replace(",","."),  "Prioridade 1")
+    sa3.metric("Promissor + Atenção",    f"{_n_pa:,}".replace(",","."),    "Reconquistar")
+    sa4.metric("Hibernando V3+V4",       f"{n_hib_prem:,}".replace(",","."), "Alta LTV")
+    sa5.metric("Leads qualificados",     f"{min(n_leads_opt, _n_leads_slots):,}".replace(",","."), "Topo de funil")
+    st.caption(
+        f"Total alocado: ~{_total_alloc:,} / 10.000 slots  ·  "
+        f"Leads com opt-in válido disponíveis: {n_leads_opt:,}".replace(",",".")
+    )
+    st.markdown("---")
+
+    # ── Botão preparar exportações ─────────────────────────────────────────────
+    st.markdown("### Exportações por campanha")
+    st.caption("Clique em **Preparar exportações** para gerar os CSVs. Cada CSV está pronto para importar no RD Station.")
+
+    if st.button("🔄  Preparar exportações", key="btn_prep_exports", use_container_width=False):
+        with st.spinner("Gerando CSVs… pode levar 10–20 seg na primeira vez"):
+            st.session_state["exp_c1"]      = _export_segments(("Em risco","Promissor","Atenção"))
+            st.session_state["exp_c2_comp"] = _export_segments(("Campeão","Leal","Novo","Em risco","Promissor","Atenção"))
+            st.session_state["exp_c2_lead"] = _export_segments(("Lead",))
+            st.session_state["exp_c3_hib"]  = _export_segments(("Hibernando",), ("V3","V4"))
+
+    _exp = {k: st.session_state[k] for k in
+            ("exp_c1","exp_c2_comp","exp_c2_lead","exp_c3_hib")
+            if k in st.session_state}
+
+    def _dl_btn(label, key, filename):
+        if key in _exp:
+            csv_b, n_rows = _exp[key]
+            st.download_button(label, csv_b, filename, "text/csv", use_container_width=True)
+            st.caption(f"{n_rows:,} contatos com opt-in válido".replace(",","."))
+        else:
+            st.info("Clique em **Preparar exportações** acima.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Campanha 1 ─────────────────────────────────────────────────────────────
+    with st.expander("📧  Campanha 1 — Reativação   (Junho–Agosto)", expanded=True):
+        ca, cb = st.columns([3, 1])
+        with ca:
+            st.markdown("""
+**Alvo:** Em risco + Promissor + Atenção
+**Objetivo:** 10 % de recompra → ~300 pedidos
+**Tag no RD:** `camp_reativacao_2026`
+
+| # | Dia | Assunto sugerido | CTA |
+|---|-----|------------------|-----|
+| 1 | 0 | *"Sentimos sua falta, [Nome] 🌱"* — mencione o produto que já comprou, mostre o que há de novo | Ver catálogo |
+| 2 | 7 | *"Só para você: 15 % de desconto"* — oferta exclusiva para quem foi cliente | Comprar agora |
+| 3 | 14 | *"Último aviso — oferta encerra hoje"* — escassez + prova social (avaliações) | Aproveitar |
+
+**Critério de sucesso:** taxa de abertura > 20 %, 1 compra confirmada por e-mail ativado.
+**Critério de saída:** sem abertura em e-mail 1 e 2 → remover do slot.
+""")
+        with cb:
+            n_reat = _tc6.get("Em risco",0) + _tc6.get("Promissor",0) + _tc6.get("Atenção",0)
+            st.metric("Contatos no segmento", f"{n_reat:,}".replace(",","."))
+            _dl_btn("⬇️ CSV Campanha 1", "exp_c1", "camp1_reativacao.csv")
+
+    # ── Campanha 2 ─────────────────────────────────────────────────────────────
+    with st.expander("🌱  Campanha 2 — Primavera   (Setembro–Outubro)"):
+        ca, cb = st.columns([3, 1])
+        with ca:
+            st.markdown("""
+**Alvo A — Compradores ativos:** Campeão + Leal + Novo + Em risco + Promissor + Atenção
+**Alvo B — Leads:** contatos com opt-in válido, 1ª compra ainda não realizada
+**Tag no RD:** `camp_primavera_comp_2026` / `camp_primavera_leads_2026`
+
+**Flow Compradores (3 e-mails):**
+
+| # | Dia | Assunto sugerido | CTA |
+|---|-----|------------------|-----|
+| 1 | 0 | *"Chegou a hora de plantar, [Nome] 🌿"* — contexto de primavera + produto certo para o momento | Ver Kits |
+| 2 | 5 | *"Bokashi + Mix de Plantio: combinação perfeita"* — educação + combo | Comprar combo |
+| 3 | 12 | *"Cuide da sua horta neste verão"* — Nutrição + upsell HI | Ver Nutrição |
+
+**Flow Leads (3 e-mails):**
+
+| # | Dia | Assunto sugerido | CTA |
+|---|-----|------------------|-----|
+| 1 | 0 | *"Como montar sua primeira horta em casa"* — conteúdo educativo, sem venda direta | Ler guia |
+| 2 | 7 | *"Kit Starter YWG: tudo para começar"* — produto de entrada com baixo risco | Ver kit |
+| 3 | 15 | *"10 % na primeira compra — só até domingo"* — urgência real | Comprar |
+
+**Critério de saída leads:** sem clique após e-mail 2 → remover do slot e substituir.
+""")
+        with cb:
+            n_comp_at = sum(_tc6.get(t,0) for t in ("Campeão","Leal","Novo","Em risco","Promissor","Atenção"))
+            st.metric("Compradores ativos", f"{n_comp_at:,}".replace(",","."))
+            _dl_btn("⬇️ CSV Compradores", "exp_c2_comp", "camp2_compradores.csv")
+            st.markdown("")
+            st.metric("Leads com opt-in", f"{n_leads_opt:,}".replace(",","."))
+            _dl_btn("⬇️ CSV Leads", "exp_c2_lead", "camp2_leads.csv")
+
+    # ── Campanha 3 ─────────────────────────────────────────────────────────────
+    with st.expander("🎁  Campanha 3 — Natal   (Novembro–Dezembro)"):
+        ca, cb = st.columns([3, 1])
+        with ca:
+            st.markdown("""
+**Alvo:** Hibernando V3+V4 (LTV histórica > R$200) + leads que não converteram na campanha 2
+**Objetivo:** presentes criativos vs. varejo genérico
+**Produtos destaque:** Horta Inteligente, Plantas Vivas, Óleos Essenciais
+**Tag no RD:** `camp_natal_2026`
+
+| # | Dia | Assunto sugerido | CTA |
+|---|-----|------------------|-----|
+| 1 | 0 | *"O presente que todo amante de plantas quer 🎁"* — posicionar como alternativa criativa ao varejo | Ver sugestões |
+| 2 | 7 | *"Horta Inteligente: o favorito do Natal"* — social proof + fotos reais de clientes | Ver HI |
+| 3 | 14 | *"Frete grátis + embrulho especial até dia 20"* — deadline real de entrega | Comprar agora |
+
+**Para leads não convertidos:** reusar CSV da Campanha 2, excluindo quem comprou.
+**Critério de saída:** sem abertura nos 3 e-mails → desinscrever do slot, não desperdiçar limite.
+""")
+        with cb:
+            st.metric("Hibernando V3+V4", f"{n_hib_prem:,}".replace(",","."))
+            _dl_btn("⬇️ CSV Hibernando Premium", "exp_c3_hib", "camp3_natal_hib.csv")
+            st.caption("Leads: reusar CSV da Campanha 2")
+
+    st.markdown("---")
+
+    # ── Regras de gestão ───────────────────────────────────────────────────────
+    st.markdown("### Regras de gestão dos 10k slots")
+    st.markdown("""
+| Situação | Ação |
+|----------|------|
+| Sem abertura em 60 dias | Remover do RD · substituir pelo próximo da fila |
+| Compra confirmada | Retirar da sequência ativa · reclassificar tier automaticamente |
+| Lead converte | Mover para flow de compradores |
+| Slot < 9.000 | Importar novo lote de leads (CSV Campanha 2 — Leads) |
+
+**Prioridade de fila de entrada:**
+Campeão → Leal → Em risco → Promissor → Atenção → Hibernando V3/V4 → Leads opt-in
+
+**Nunca importar** contatos com `Opt-in = No` ou `(vazio)` — risco LGPD.
+**Atualizar os CSVs** aqui mensalmente: clicar em *Preparar exportações* no início de cada mês.
+""")
