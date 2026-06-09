@@ -553,17 +553,34 @@ with tab1:
         )
         st.plotly_chart(fig_optin, use_container_width=True)
 
+    # ── Divisão da base ───────────────────────────────────────────────────────
+    st.markdown("---")
+    _n_leads = tier_counts.get("Lead", 0)
+    _n_buy   = total - _n_leads
+    mc1, mc2 = st.columns(2)
+    mc1.metric(
+        "Já compraram (VNDA + Shopify)",
+        f"{_n_buy:,}".replace(",", "."),
+        delta=f"{_n_buy / total * 100:.1f}% da base",
+    )
+    mc2.metric(
+        "Nunca compraram — Leads",
+        f"{_n_leads:,}".replace(",", "."),
+        delta=f"{_n_leads / total * 100:.1f}% da base",
+        delta_color="off",
+    )
+    st.markdown("<br>", unsafe_allow_html=True)
+
     # ── Row 3: R | F | V | Top 5 estados ─────────────────────────────────────
     col_r, col_f, col_v, col_st = st.columns(4)
 
     with col_r:
         st.markdown("### R — Recência")
         r_labels = [
-            ("< 6 meses",    r_dist.get("R1", 0)),
-            ("6–12 meses",   r_dist.get("R2", 0)),
-            ("1–2 anos",     r_dist.get("R3", 0)),
-            ("> 2 anos",     r_dist.get("R4", 0)),
-            ("Nunca comprou",r_dist.get("R0", 0)),
+            ("< 6 meses",  r_dist.get("R1", 0)),
+            ("6–12 meses", r_dist.get("R2", 0)),
+            ("1–2 anos",   r_dist.get("R3", 0)),
+            ("> 2 anos",   r_dist.get("R4", 0)),
         ]
         df_r = pd.DataFrame(r_labels, columns=["Recência", "Contatos"])
         fig_r = px.bar(
