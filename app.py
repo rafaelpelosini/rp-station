@@ -483,7 +483,7 @@ def load_rd_analytics(days=30):
     return conv, email
 
 # ─── HEADER ───────────────────────────────────────────────────────────────────
-hcol1, hcol2 = st.columns([6, 1])
+hcol1, hcol2, hcol3 = st.columns([6, 1, 1])
 with hcol1:
     st.markdown("""
     <div style='display:flex; align-items:center; gap:12px; padding: 8px 0 16px 0;'>
@@ -501,6 +501,23 @@ with hcol2:
     if st.button("↺ Atualizar", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+with hcol3:
+    _music_on = st.session_state.get("music_on", False)
+    if st.button("♫ Som" if not _music_on else "◼ Som", use_container_width=True):
+        st.session_state["music_on"] = not _music_on
+        st.rerun()
+
+if st.session_state.get("music_on", False):
+    st.markdown("""
+    <div style='margin-bottom:12px;'>
+      <iframe style="border-radius:2px; display:block;"
+        src="https://open.spotify.com/embed/track/1WedkqPvUe8pSkW3JJRmFi?utm_source=generator&theme=0"
+        width="100%" height="80" frameborder="0"
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy">
+      </iframe>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Contatos", "RD Station", "Playbook"])
