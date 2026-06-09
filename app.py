@@ -3,6 +3,7 @@ import unicodedata
 from datetime import datetime, timedelta, date
 import requests as http_requests
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -508,16 +509,48 @@ with hcol3:
         st.rerun()
 
 if st.session_state.get("music_on", False):
-    st.markdown("""
-    <div style='margin-bottom:12px;'>
-      <iframe style="border-radius:2px; display:block;"
-        src="https://open.spotify.com/embed/playlist/6pJBM0aBzXyHx2tJVEUKqk?utm_source=generator&theme=0"
-        width="100%" height="80" frameborder="0"
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        loading="lazy">
-      </iframe>
-    </div>
-    """, unsafe_allow_html=True)
+    components.html("""
+<!DOCTYPE html><html><body style="margin:0;padding:0;">
+<script>
+(function(){
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  const ctx = new AC();
+  const master = ctx.createGain();
+  master.gain.value = 0.09;
+  master.connect(ctx.destination);
+
+  // Pentatonic C-major, two octaves
+  const scale = [130.81,146.83,164.81,196.00,220.00,
+                 261.63,293.66,329.63,392.00,440.00,523.25];
+
+  function tone(freq, when, dur, vol) {
+    const osc = ctx.createOscillator();
+    const env = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    env.gain.setValueAtTime(0, when);
+    env.gain.linearRampToValueAtTime(vol || 0.22, when + 0.5);
+    env.gain.linearRampToValueAtTime(0, when + dur);
+    osc.connect(env); env.connect(master);
+    osc.start(when); osc.stop(when + dur + 0.1);
+  }
+
+  function next() {
+    const t = ctx.currentTime;
+    const f = scale[Math.floor(Math.random() * scale.length)];
+    tone(f, t, 3 + Math.random() * 3);
+    if (Math.random() > 0.5)
+      tone(scale[Math.floor(Math.random() * 6)], t + 0.08, 4, 0.09);
+  }
+
+  next();
+  const iv = setInterval(next, 2400);
+  window.addEventListener('beforeunload', function(){ clearInterval(iv); ctx.close(); });
+})();
+</script>
+</body></html>
+""", height=1)
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Contatos", "RD Station", "Playbook"])
