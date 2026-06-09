@@ -511,7 +511,7 @@ if st.session_state.get("music_on", False):
     st.markdown("""
     <div style='margin-bottom:12px;'>
       <iframe style="border-radius:2px; display:block;"
-        src="https://open.spotify.com/embed/track/1WedkqPvUe8pSkW3JJRmFi?utm_source=generator&theme=0"
+        src="https://open.spotify.com/embed/playlist/6pJBM0aBzXyHx2tJVEUKqk?utm_source=generator&theme=0"
         width="100%" height="80" frameborder="0"
         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
         loading="lazy">
