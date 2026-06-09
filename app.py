@@ -974,7 +974,7 @@ with tab4:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Campanha 1 ─────────────────────────────────────────────────────────────
-    with st.expander("📧  Campanha 1 — Reativação   (Junho–Agosto)", expanded=True):
+    with st.expander("Campanha 1 — Reativação  (Junho–Agosto)", expanded=True):
         ca, cb = st.columns([3, 1])
         with ca:
             st.markdown("""
@@ -997,7 +997,7 @@ with tab4:
             _dl_btn("⬇️ CSV Campanha 1", "exp_c1", "camp1_reativacao.csv")
 
     # ── Campanha 2 ─────────────────────────────────────────────────────────────
-    with st.expander("🌱  Campanha 2 — Primavera   (Setembro–Outubro)"):
+    with st.expander("Campanha 2 — Primavera  (Setembro–Outubro)"):
         ca, cb = st.columns([3, 1])
         with ca:
             st.markdown("""
@@ -1032,7 +1032,7 @@ with tab4:
             _dl_btn("⬇️ CSV Leads", "exp_c2_lead", "camp2_leads.csv")
 
     # ── Campanha 3 ─────────────────────────────────────────────────────────────
-    with st.expander("🎁  Campanha 3 — Natal   (Novembro–Dezembro)"):
+    with st.expander("Campanha 3 — Natal  (Novembro–Dezembro)"):
         ca, cb = st.columns([3, 1])
         with ca:
             st.markdown("""
