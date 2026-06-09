@@ -343,7 +343,7 @@ _OPT_IN_VALID_LIST = ["Ok","Sim","Yes","OptNewsVNDA","OptTidio","OptShopify",
 _EXPORT_COLS = "email,first_name,last_name,tier,rfm_score,opt_in,ultimo_pedido,revenue_vnda,total_compras"
 
 @st.cache_data(ttl=3600)
-def _export_segments(tiers: tuple, val_filter: tuple = ()):
+def _export_segments(tiers: tuple, val_filter: tuple = (), limit: int = 0):
     sb = get_sb()
     PAGE = 1000; offset = 0; rows = []
     while True:
@@ -354,10 +354,12 @@ def _export_segments(tiers: tuple, val_filter: tuple = ()):
              .order("rfm_score", desc=True))
         if val_filter:
             q = q.in_("val", list(val_filter))
-        r = q.range(offset, offset + PAGE - 1).execute()
+        fetch = min(PAGE, limit - len(rows)) if limit else PAGE
+        r = q.range(offset, offset + fetch - 1).execute()
         if not r.data: break
         rows.extend(r.data)
-        if len(r.data) < PAGE: break
+        if limit and len(rows) >= limit: break
+        if len(r.data) < fetch: break
         offset += PAGE
     if not rows:
         return b"", 0
@@ -985,6 +987,45 @@ with tab4:
 
     st.markdown("## Playbook — 180 dias")
     st.caption("Guia de execução para a equipe · Limite RD Station: 10.000 leads ativos")
+    st.markdown("---")
+
+    # ── Importação Inicial ─────────────────────────────────────────────────────
+    _IMPORT_LIMIT = 9_500
+    _ALL_TIERS = ("Campeão","Leal","Novo","Promissor","Em risco","Atenção","Hibernando","Lead")
+
+    with st.expander("🚀 Importação Inicial — 9.500 contatos", expanded=True):
+        ia, ib = st.columns([3, 1])
+        with ia:
+            st.markdown(f"""
+**Objetivo:** carregar os primeiros {_IMPORT_LIMIT:,} contatos no RD Station de uma vez, deixando 500 slots de margem.
+
+**Critério de seleção:**
+- Todos os tiers (compradores + leads)
+- Apenas opt-in válido
+- Ordenados por **RFM Score** — os mais valiosos primeiro
+
+**Após importar:**
+- Crie um campo personalizado `tier` no RD Station e mapeie a coluna **Tier** do CSV
+- Crie segmentações por tier para usar nas campanhas abaixo
+- Lance a **Campanha 1 (Reativação)** imediatamente apontando para Em risco + Promissor + Atenção
+""".replace(",", "."))
+        with ib:
+            if st.button("🔄  Gerar CSV inicial", key="btn_initial_import", use_container_width=True):
+                with st.spinner(f"Gerando {_IMPORT_LIMIT:,} contatos… pode levar 20–40 seg".replace(",",".")):
+                    st.session_state["exp_initial"] = _export_segments(
+                        _ALL_TIERS, limit=_IMPORT_LIMIT
+                    )
+            if "exp_initial" in st.session_state:
+                csv_b, n_rows = st.session_state["exp_initial"]
+                st.download_button(
+                    f"⬇️ CSV {n_rows:,} contatos".replace(",","."),
+                    csv_b, "importacao_inicial_rd.csv", "text/csv",
+                    use_container_width=True,
+                )
+                st.caption(f"{n_rows:,} / {_IMPORT_LIMIT:,} slots".replace(",","."))
+            else:
+                st.info("Clique em **Gerar CSV inicial** para preparar.")
+
     st.markdown("---")
 
     # ── Alocação dos 10k slots ─────────────────────────────────────────────────
