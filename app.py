@@ -510,7 +510,18 @@ with hcol3:
 
 if st.session_state.get("music_on", False):
     components.html("""
-<!DOCTYPE html><html><body style="margin:0;padding:0;">
+<!DOCTYPE html><html><body style="margin:0;padding:2px 0 0 0;overflow:hidden;background:transparent;">
+<style>
+@keyframes wave{0%,100%{height:3px}50%{height:14px}}
+.b{width:3px;background:#9CA3AF;border-radius:2px;display:inline-block;vertical-align:bottom;margin-right:3px;}
+</style>
+<div style="display:flex;align-items:flex-end;height:18px;">
+  <span class="b" style="animation:wave 0.9s ease-in-out infinite 0.00s;"></span>
+  <span class="b" style="animation:wave 0.9s ease-in-out infinite 0.15s;"></span>
+  <span class="b" style="animation:wave 0.9s ease-in-out infinite 0.30s;"></span>
+  <span class="b" style="animation:wave 0.9s ease-in-out infinite 0.45s;"></span>
+  <span class="b" style="animation:wave 0.9s ease-in-out infinite 0.60s;"></span>
+</div>
 <script>
 (function(){
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -519,11 +530,8 @@ if st.session_state.get("music_on", False):
   const master = ctx.createGain();
   master.gain.value = 0.09;
   master.connect(ctx.destination);
-
-  // Pentatonic C-major, two octaves
   const scale = [130.81,146.83,164.81,196.00,220.00,
                  261.63,293.66,329.63,392.00,440.00,523.25];
-
   function tone(freq, when, dur, vol) {
     const osc = ctx.createOscillator();
     const env = ctx.createGain();
@@ -535,7 +543,6 @@ if st.session_state.get("music_on", False):
     osc.connect(env); env.connect(master);
     osc.start(when); osc.stop(when + dur + 0.1);
   }
-
   function next() {
     const t = ctx.currentTime;
     const f = scale[Math.floor(Math.random() * scale.length)];
@@ -543,14 +550,13 @@ if st.session_state.get("music_on", False):
     if (Math.random() > 0.5)
       tone(scale[Math.floor(Math.random() * 6)], t + 0.08, 4, 0.09);
   }
-
   next();
   const iv = setInterval(next, 2400);
   window.addEventListener('beforeunload', function(){ clearInterval(iv); ctx.close(); });
 })();
 </script>
 </body></html>
-""", height=1)
+""", height=24)
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Contatos", "RD Station", "Playbook"])
