@@ -16,6 +16,21 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ─── AUTH ────────────────────────────────────────────────────────────────────
+if not st.session_state.get("authenticated"):
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col = st.columns([1, 1, 1])[1]
+    with col:
+        st.markdown("### RP Station")
+        pwd = st.text_input("Senha", type="password", placeholder="Digite a senha…")
+        if st.button("Entrar", use_container_width=True):
+            if pwd == st.secrets.get("app_password", ""):
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Senha incorreta.")
+    st.stop()
+
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
