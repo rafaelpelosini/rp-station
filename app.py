@@ -298,6 +298,24 @@ def load_all_ac_tags():
     res = sb.table("v_tag_counts").select("tag,total").eq("source", "ac").execute()
     return {r["tag"]: r["total"] for r in res.data}
 
+@st.cache_data(ttl=600)
+def load_tier_counts():
+    sb = get_sb()
+    res = sb.table("v_tier_counts").select("tier,total").execute()
+    return {r["tier"]: r["total"] for r in res.data}
+
+@st.cache_data(ttl=600)
+def load_rfm_dist():
+    sb = get_sb()
+    res = sb.table("v_rfm_dist").select("rec,freq,val,total").execute()
+    df = pd.DataFrame(res.data) if res.data else pd.DataFrame(columns=["rec","freq","val","total"])
+    if df.empty:
+        return {}, {}, {}
+    r_agg = df.groupby("rec")["total"].sum().to_dict()
+    f_agg = df.groupby("freq")["total"].sum().to_dict()
+    v_agg = df.groupby("val")["total"].sum().to_dict()
+    return r_agg, f_agg, v_agg
+
 _PROD_LABEL = {
     "RP_Clientes_Bokashi":          "Bokashi",
     "RP_Clientes_MixdePlantio":     "Mix de Plantio",
@@ -342,18 +360,20 @@ def load_product_stats():
     return pd.DataFrame(rows).sort_values("Compradores", ascending=False)
 
 _SORT_OPTIONS = {
-    "Score AC (maior primeiro)":       ("score",         True),
+    "RFM Score (maior primeiro)":      ("rfm_score",     True),
     "Receita VNDA (maior primeiro)":   ("revenue_vnda",  True),
-    "Pedidos VNDA (maior primeiro)":   ("purchases_vnda",True),
+    "Total Compras (maior primeiro)":  ("total_compras", True),
     "Último pedido (mais recente)":    ("ultimo_pedido", True),
     "Último pedido (mais antigo)":     ("ultimo_pedido", False),
+    "Score AC (maior primeiro)":       ("score",         True),
 }
 
 @st.cache_data(ttl=600)
-def load_contacts_page(page=0, page_size=100, opt_in_filter=None, sort_col="score", sort_desc=True):
+def load_contacts_page(page=0, page_size=100, opt_in_filter=None, sort_col="rfm_score", sort_desc=True):
     sb = get_sb()
     q = sb.table("v_buyer_segments").select(
-        "email,first_name,last_name,state,opt_in,score,purchases_vnda,revenue_vnda,ultimo_pedido"
+        "email,first_name,last_name,state,opt_in,"
+        "tier,rfm_score,total_compras,purchases_vnda,revenue_vnda,ultimo_pedido"
     )
     if opt_in_filter and opt_in_filter != "Todos":
         q = q.eq("opt_in", opt_in_filter)
@@ -436,9 +456,10 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊  Overview", "👥  Contatos", "�
 
 # ─── OVERVIEW ────────────────────────────────────────────────────────────────
 with tab1:
-    ov      = load_overview()
-    all_tags = load_all_ac_tags()
-    df_opt  = load_opt_in()
+    ov          = load_overview()
+    df_opt      = load_opt_in()
+    tier_counts = load_tier_counts()
+    r_dist, f_dist, v_dist = load_rfm_dist()
 
     if not ov:
         st.error("Erro ao carregar dados. Verifique as views no Supabase.")
@@ -477,26 +498,23 @@ with tab1:
 
     with col_tier:
         st.markdown("### Ciclo de vida")
-        _tier_colors = {
-            "Fieis":          "#059669",
-            "Advogados":      "#10B981",
-            "Promissing":     "#34D399",
-            "Novos":          "#22D3EE",
-            "Potencial":      "#60A5FA",
-            "Nunca Comprou":  "#94A3B8",
-            "Atenção":        "#FB923C",
-            "Quase dormindo": "#F97316",
-            "Hibernando":     "#EA580C",
-            "Em risco":       "#EF4444",
-            "Não perca!":     "#DC2626",
+        _TIER_COLORS = {
+            "Campeão":   "#059669",
+            "Leal":      "#10B981",
+            "Novo":      "#22D3EE",
+            "Promissor": "#60A5FA",
+            "Em risco":  "#EF4444",
+            "Atenção":   "#FB923C",
+            "Hibernando":"#94A3B8",
         }
-        tier_rows = sorted(
-            [(k.replace("Tier ", ""), v)
-             for k, v in all_tags.items() if k.startswith("Tier ")],
-            key=lambda x: -x[1]
-        )
-        df_tier = pd.DataFrame(tier_rows, columns=["Tier", "Contatos"])
-        df_tier["Cor"] = df_tier["Tier"].map(_tier_colors).fillna("#94A3B8")
+        _TIER_ORDER = ["Campeão","Leal","Novo","Promissor","Em risco","Atenção","Hibernando"]
+        n_leads = tier_counts.get("Lead", 0)
+        buyer_tier_rows = [
+            (t, tier_counts.get(t, 0)) for t in _TIER_ORDER
+        ]
+        df_tier = pd.DataFrame(buyer_tier_rows, columns=["Tier", "Contatos"])
+        df_tier = df_tier[df_tier["Contatos"] > 0]
+        df_tier["Cor"]   = df_tier["Tier"].map(_TIER_COLORS)
         df_tier["Label"] = df_tier["Contatos"].apply(lambda x: f"{x:,}".replace(",", "."))
 
         fig_tier = go.Figure(go.Bar(
@@ -506,12 +524,13 @@ with tab1:
             text=df_tier["Label"], textposition="outside",
         ))
         fig_tier.update_layout(
-            height=320, margin=dict(t=5, b=5, l=5, r=70),
+            height=300, margin=dict(t=5, b=5, l=5, r=70),
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
             yaxis=dict(autorange="reversed"),
             xaxis=dict(gridcolor="#F0F0F0", showticklabels=False),
         )
         st.plotly_chart(fig_tier, use_container_width=True)
+        st.caption(f"+ {n_leads:,} Leads (nunca compraram) · RFM calculado em tempo real da base VNDA+AC".replace(",","."))
 
     with col_optin:
         st.markdown("### Opt-in")
@@ -539,15 +558,14 @@ with tab1:
 
     with col_r:
         st.markdown("### R — Recência")
-        r_data = [
-            ("< 45 dias",    all_tags.get("Rec - Super Recente (45d)", 0)),
-            ("46–90 dias",   all_tags.get("Rec - Bem Recente (46-90d)", 0)),
-            ("136–180 dias", all_tags.get("Rec - Pouco Recente (136-180d)", 0)),
-            ("> 180 dias",   all_tags.get("Rec - Nada Recente (180<)", 0)
-                           + all_tags.get("Rec - Nada Recente (180", 0)),
-            ("Nunca comprou",all_tags.get("Rec - Nunca Comprou", 0)),
+        r_labels = [
+            ("< 6 meses",    r_dist.get("R1", 0)),
+            ("6–12 meses",   r_dist.get("R2", 0)),
+            ("1–2 anos",     r_dist.get("R3", 0)),
+            ("> 2 anos",     r_dist.get("R4", 0)),
+            ("Nunca comprou",r_dist.get("R0", 0)),
         ]
-        df_r = pd.DataFrame(r_data, columns=["Recência", "Contatos"])
+        df_r = pd.DataFrame(r_labels, columns=["Recência", "Contatos"])
         fig_r = px.bar(
             df_r, x="Contatos", y="Recência", orientation="h",
             color_discrete_sequence=["#0090A8"],
@@ -562,14 +580,13 @@ with tab1:
 
     with col_f:
         st.markdown("### F — Frequência")
-        f_data = [
-            ("1 compra",   all_tags.get("Freq01", 0)),
-            ("2 compras",  all_tags.get("Freq02", 0)),
-            ("3 compras",  all_tags.get("Freq03", 0)),
-            ("4 compras",  all_tags.get("Freq04", 0)),
-            ("5+ compras", all_tags.get("Freq05+", 0)),
+        f_labels = [
+            ("1 compra",  f_dist.get("F1", 0)),
+            ("2–3",       f_dist.get("F2", 0)),
+            ("4–9",       f_dist.get("F3", 0)),
+            ("10+",       f_dist.get("F4", 0)),
         ]
-        df_f = pd.DataFrame(f_data, columns=["Frequência", "Contatos"])
+        df_f = pd.DataFrame(f_labels, columns=["Frequência", "Contatos"])
         fig_f = px.bar(
             df_f, x="Frequência", y="Contatos",
             color_discrete_sequence=["#0090A8"],
@@ -584,15 +601,15 @@ with tab1:
 
     with col_v:
         st.markdown("### V — Valor")
-        v_data = [
-            (int(re.search(r"\d+", k).group()), v)
-            for k, v in all_tags.items()
-            if k.startswith("Val") and v > 0
+        v_labels = [
+            ("< R$100",    v_dist.get("V1", 0)),
+            ("R$100–200",  v_dist.get("V2", 0)),
+            ("R$200–400",  v_dist.get("V3", 0)),
+            ("> R$400",    v_dist.get("V4", 0)),
         ]
-        df_v = pd.DataFrame(sorted(v_data), columns=["Tier", "Contatos"])
-        df_v["Tier"] = "V" + df_v["Tier"].astype(str)
+        df_v = pd.DataFrame(v_labels, columns=["Valor", "Contatos"])
         fig_v = px.bar(
-            df_v, x="Tier", y="Contatos",
+            df_v, x="Valor", y="Contatos",
             color_discrete_sequence=["#0090A8"],
         )
         fig_v.update_layout(
@@ -733,15 +750,24 @@ with tab2:
 
     if not df.empty:
         df.columns = ["Email", "Nome", "Sobrenome", "Estado", "Opt-In",
-                      "Score AC", "Pedidos VNDA", "Receita VNDA", "Último Pedido"]
-        df["Score AC"]     = df["Score AC"].fillna(0).astype(int)
+                      "Tier", "RFM", "Compras", "Pedidos VNDA", "Receita VNDA", "Último Pedido"]
+        df["RFM"]          = df["RFM"].fillna(0).astype(int)
+        df["Compras"]      = df["Compras"].fillna(0).astype(int)
         df["Pedidos VNDA"] = df["Pedidos VNDA"].fillna(0).astype(int)
         df["Receita VNDA"] = df["Receita VNDA"].fillna(0).apply(lambda x: f"R$ {x:,.2f}")
         df["Estado"]       = df["Estado"].fillna("").replace("None", "")
         df["Opt-In"]       = df["Opt-In"].fillna("").replace("None", "")
+        df["Tier"]         = df["Tier"].fillna("Lead")
         df["Último Pedido"] = pd.to_datetime(df["Último Pedido"], errors="coerce").dt.strftime("%d/%m/%Y").fillna("")
 
-        st.dataframe(df, use_container_width=True, height=520)
+        st.dataframe(
+            df,
+            column_config={
+                "RFM":    st.column_config.NumberColumn("RFM ↑",  format="%d", help="Score RFM 0–12"),
+                "Compras":st.column_config.NumberColumn("Compras",format="%d"),
+            },
+            use_container_width=True, height=520,
+        )
 
         csv = df.to_csv(index=False).encode("utf-8")
         st.download_button("⬇️ Exportar CSV", csv, "contatos_rp_station.csv", "text/csv")
