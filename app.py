@@ -340,7 +340,7 @@ def load_slot_counts():
 
 _OPT_IN_VALID_LIST = ["Ok","Sim","Yes","OptNewsVNDA","OptTidio","OptShopify",
                       "optBlog","OptVNDA","Investor List","Reserva Horta"]
-_EXPORT_COLS = "email,first_name,last_name,tier,rfm_score,opt_in,ultimo_pedido,revenue_vnda,total_compras"
+_EXPORT_COLS = "email,first_name,last_name,city,state,tier,rfm_score,opt_in,ultimo_pedido,revenue_vnda,total_compras"
 
 @st.cache_data(ttl=3600)
 def _export_segments(tiers: tuple, val_filter: tuple = (), limit: int = 0):
@@ -364,14 +364,21 @@ def _export_segments(tiers: tuple, val_filter: tuple = (), limit: int = 0):
     if not rows:
         return b"", 0
     df = pd.DataFrame(rows)
+    # Dedup por email — mantém a 1ª ocorrência (maior RFM, pois vem ordenado DESC)
+    df = df.drop_duplicates(subset=["email"], keep="first")
+    # Garantia extra: só opt-in válido (a query já filtra, mas reforça)
+    df = df[df["opt_in"].isin(_OPT_IN_VALID_LIST)]
     df = df.rename(columns={
         "first_name": "Nome", "last_name": "Sobrenome",
+        "city": "Cidade", "state": "Estado",
         "tier": "Tier", "rfm_score": "RFM Score", "opt_in": "Opt-In",
         "ultimo_pedido": "Ultimo Pedido", "revenue_vnda": "Receita VNDA",
         "total_compras": "Total Compras",
     })
     df["Ultimo Pedido"] = (pd.to_datetime(df["Ultimo Pedido"], errors="coerce")
                            .dt.strftime("%d/%m/%Y").fillna(""))
+    df["Cidade"] = df["Cidade"].fillna("").replace("None", "")
+    df["Estado"] = df["Estado"].fillna("").replace("None", "")
     return df.to_csv(index=False).encode("utf-8"), len(df)
 
 _PROD_LABEL = {
@@ -655,6 +662,22 @@ with tab1:
         )
         st.plotly_chart(fig_tier, use_container_width=True)
         st.caption(f"+ {n_leads:,} Leads (nunca compraram) · RFM calculado em tempo real da base VNDA+AC".replace(",","."))
+
+        with st.expander("O que significa cada tier?"):
+            st.markdown("""
+O tier classifica cada contato pelo **nº de compras** (VNDA confirmadas ou Shopify) cruzado com a **recência** da última compra:
+
+| Tier | Compras | Última compra | Leitura |
+|------|---------|---------------|---------|
+| **Campeão** | 4+ | < 2 anos | Melhores clientes — proteger e dar upsell |
+| **Leal** | 2–3 | < 1 ano | Recorrentes ativos |
+| **Novo** | 1 | < 1 ano | Primeira compra recente — nutrir p/ 2ª compra |
+| **Promissor** | 2–3 | 1–2 anos | Já foram recorrentes, esfriando — reconquistar |
+| **Atenção** | 1 | 1–2 anos | Compraram 1× e sumiram — reativar |
+| **Em risco** | 4+ | > 2 anos | Ex-campeões dormentes — alta LTV, prioridade |
+| **Hibernando** | 1+ | > 2 anos | Qualquer compra, sumidos há muito tempo |
+| **Lead** | 0 | — | Nunca compraram (não aparecem no gráfico acima) |
+""")
 
     with col_optin:
         st.markdown("### Opt-in")
@@ -1001,8 +1024,10 @@ with tab4:
 
 **Critério de seleção:**
 - Todos os tiers (compradores + leads)
-- Apenas opt-in válido
+- **Apenas opt-in válido** — nunca exporta `No` ou vazio (LGPD)
+- **Deduplicado por e-mail** — 1 linha por contato, mantendo o maior RFM
 - Ordenados por **RFM Score** — os mais valiosos primeiro
+- Inclui **Cidade** e **Estado** para segmentação geográfica no RD
 
 **Após importar:**
 - Crie um campo personalizado `tier` no RD Station e mapeie a coluna **Tier** do CSV
@@ -1025,6 +1050,45 @@ with tab4:
                 st.caption(f"{n_rows:,} / {_IMPORT_LIMIT:,} slots".replace(",","."))
             else:
                 st.info("Clique em **Gerar CSV inicial** para preparar.")
+
+    with st.expander("📊 Como o RFM Score é calculado (0–12)"):
+        st.markdown("""
+Cada contato recebe um score somando 3 dimensões, cada uma de **0 a 4**. O total vai de **0 (frio) a 12 (cliente ideal)**.
+
+**R — Recência** (quando comprou pela última vez, base VNDA):
+
+| Pontos | Última compra |
+|--------|---------------|
+| 4 | < 6 meses |
+| 3 | 6–12 meses |
+| 2 | 1–2 anos |
+| 1 | > 2 anos |
+| 0 | nunca comprou |
+
+**F — Frequência** (nº de compras = maior valor entre pedidos VNDA confirmados e Shopify):
+
+| Pontos | Compras |
+|--------|---------|
+| 4 | 10+ |
+| 3 | 4–9 |
+| 2 | 2–3 |
+| 1 | 1 |
+| 0 | 0 |
+
+**V — Valor** (receita total confirmada na VNDA):
+
+| Pontos | Receita |
+|--------|---------|
+| 4 | > R$400 |
+| 3 | R$200–400 |
+| 2 | R$100–200 |
+| 1 | < R$100 |
+| 0 | sem receita VNDA |
+
+**Score final = R + F + V.** É calculado em tempo real pela view `v_buyer_segments` no Supabase — sempre reflete o estado atual da base. O mesmo score também define o **tier** (ciclo de vida) visto na aba Overview.
+
+> ⚠️ A dimensão **V** usa só receita VNDA verificada. Clientes que compraram apenas na Shopify pontuam em F (via tag AC) mas não em V — por isso podem ter RFM um pouco menor que o histórico real.
+""")
 
     st.markdown("---")
 
