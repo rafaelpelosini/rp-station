@@ -351,7 +351,8 @@ def _export_segments(tiers: tuple, val_filter: tuple = (), limit: int = 0):
              .select(_EXPORT_COLS)
              .in_("tier", list(tiers))
              .in_("opt_in", _OPT_IN_VALID_LIST)
-             .order("rfm_score", desc=True))
+             .order("rfm_score", desc=True)
+             .order("id"))  # tiebreaker estável → paginação sem sobreposição
         if val_filter:
             q = q.in_("val", list(val_filter))
         fetch = min(PAGE, limit - len(rows)) if limit else PAGE
@@ -455,7 +456,7 @@ def load_contacts_page(page=0, page_size=100, sort_col="rfm_score", sort_desc=Tr
          .in_("opt_in", _OPT_IN_VALID_LIST))
     if sort_col == "ultimo_pedido":
         q = q.not_.is_("ultimo_pedido", "null")
-    q = q.order(sort_col, desc=sort_desc)
+    q = q.order(sort_col, desc=sort_desc).order("id")  # tiebreaker estável p/ paginação
     res = q.range(page * page_size, (page + 1) * page_size - 1).execute()
     return pd.DataFrame(res.data)
 
@@ -1013,14 +1014,14 @@ with tab4:
     st.markdown("---")
 
     # ── Importação Inicial ─────────────────────────────────────────────────────
-    _IMPORT_LIMIT = 9_500
+    _IMPORT_LIMIT = 9_000
     _ALL_TIERS = ("Campeão","Leal","Novo","Promissor","Em risco","Atenção","Hibernando","Lead")
 
-    with st.expander("🚀 Importação Inicial — 9.500 contatos", expanded=True):
+    with st.expander("🚀 Importação Inicial — 9.000 contatos", expanded=True):
         ia, ib = st.columns([3, 1])
         with ia:
             st.markdown(f"""
-**Objetivo:** carregar os primeiros {_IMPORT_LIMIT:,} contatos no RD Station de uma vez, deixando 500 slots de margem.
+**Objetivo:** carregar os primeiros {_IMPORT_LIMIT:,} contatos no RD Station de uma vez, deixando 1.000 slots de margem.
 
 **Critério de seleção:**
 - Todos os tiers (compradores + leads)
