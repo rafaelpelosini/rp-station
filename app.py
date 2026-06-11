@@ -351,8 +351,8 @@ def _export_segments(tiers: tuple, val_filter: tuple = (), limit: int = 0):
              .select(_EXPORT_COLS)
              .in_("tier", list(tiers))
              .in_("opt_in", _OPT_IN_VALID_LIST)
-             .order("rfm_score", desc=True)
-             .order("id"))  # tiebreaker estável → paginação sem sobreposição
+             .order("rfm_score.desc,id", desc=False))  # rfm desc + tiebreaker id num ÚNICO param
+                                                        # (chamadas .order() separadas viram 2 params e o PostgREST ignora o 2º)
         if val_filter:
             q = q.in_("val", list(val_filter))
         fetch = min(PAGE, limit - len(rows)) if limit else PAGE
@@ -456,7 +456,8 @@ def load_contacts_page(page=0, page_size=100, sort_col="rfm_score", sort_desc=Tr
          .in_("opt_in", _OPT_IN_VALID_LIST))
     if sort_col == "ultimo_pedido":
         q = q.not_.is_("ultimo_pedido", "null")
-    q = q.order(sort_col, desc=sort_desc).order("id")  # tiebreaker estável p/ paginação
+    _dir = "desc" if sort_desc else "asc"
+    q = q.order(f"{sort_col}.{_dir},id", desc=False)  # ordena + tiebreaker id num único param
     res = q.range(page * page_size, (page + 1) * page_size - 1).execute()
     return pd.DataFrame(res.data)
 
