@@ -425,6 +425,115 @@ def load_product_stats():
                      "Com VNDA": len(revenues), "Avg Ticket": avg})
     return pd.DataFrame(rows).sort_values("Compradores", ascending=False)
 
+# ─── BRIEFING (Sem 1 Jul 26) — células por jornada de cultivo ──────────────────
+# Só produtos VIVOS (YWG parou de vender HI, Kit Mudas e plantas/mudas).
+_LIVE_PROD_TAGS = {
+    "Bokashi":  "RP_Clientes_Bokashi",
+    "Cápsula":  "RP_Cliente_BK_Capsula",
+    "Vega":     "RP_Clientes_NutriçãoBásica",   # fase vegetativa (crescer, N alto)
+    "Flora":    "RP_Clientes_NutriçãoMulti",    # fase floração (florir/frutificar, P-K alto)
+    "Guardião": "RP_Clientes_NutriçãoDefesa",   # proteção de pragas
+    "Mix":      "RP_Clientes_MixdePlantio",     # substrato
+}
+
+# (chave, rótulo, papel, gancho SUGERIDO — tom aspiracional)
+_BRIEF_STAGES = [
+    ("b_so",    "Bokashi · sem nutrição líquida", "Reabastecer Bokashi + convite Vega",
+     "Sua terra merece o Bokashi de sempre 🟤 — e sua planta merece um alimento pensado pra ela 🌱"),
+    ("b_vega",  "Bokashi + Vega · sem Flora", "Reabastecer + preparar floração",
+     "Suas plantas cresceram fortes 🌿 — agora é hora de prepará-las pra florir e frutificar"),
+    ("b_ciclo", "Bokashi + Vega + Flora", "Reabastecer + proteção / assinatura",
+     "Seu cultivo tem tudo pra ser completo — deixe a nutrição sempre à mão"),
+    ("b_misto", "Bokashi + líquida · sem Vega", "Reabastecer + completar a base",
+     "Complete o ciclo começando pela nutrição que faz crescer"),
+    ("mix",     "Mix de Plantio · sem Bokashi", "Convite ao herói",
+     "Seu solo merece o Bokashi pra nutrir de verdade 🟤"),
+    ("liq",     "Nutrição líquida · sem solo", "Completar com Bokashi",
+     "Você já alimenta a planta — que tal também nutrir o solo, a base de tudo?"),
+    ("sem_tag", "Sem histórico de produto", "Best-sellers / recomeço",
+     "Bons cultivos começam com boa nutrição 🌱"),
+]
+
+@st.cache_data(ttl=3600)
+def _load_tag_ids(tag):
+    """Set de contact_id que têm a tag de produto (source ac). Order estável p/ paginar."""
+    sb = get_sb()
+    ids = set(); offset = 0; PAGE = 1000
+    while True:
+        r = (sb.table("contact_tags").select("contact_id")
+             .eq("tag", tag).eq("source", "ac")
+             .order("contact_id", desc=False)
+             .range(offset, offset + PAGE - 1).execute())
+        if not r.data: break
+        ids.update(x["contact_id"] for x in r.data)
+        if len(r.data) < PAGE: break
+        offset += PAGE
+    return ids
+
+@st.cache_data(ttl=3600)
+def _load_onda_full(tiers):
+    """Linhas da onda (id + colunas de export), opt-in válido, dedup por email, ordem RFM."""
+    sb = get_sb()
+    cols = "id," + _EXPORT_COLS
+    PAGE = 1000; offset = 0; rows = []
+    while True:
+        r = (sb.table("v_buyer_segments").select(cols)
+             .in_("tier", list(tiers))
+             .in_("opt_in", _OPT_IN_VALID_LIST)
+             .order("rfm_score.desc,id", desc=False)  # ÚNICO param (tiebreaker estável)
+             .range(offset, offset + PAGE - 1).execute())
+        if not r.data: break
+        rows.extend(r.data)
+        if len(r.data) < PAGE: break
+        offset += PAGE
+    seen = set(); uniq = []
+    for r in rows:
+        e = (r.get("email") or "").strip().lower()
+        if not e or e in seen: continue
+        seen.add(e); uniq.append(r)
+    return uniq
+
+def _build_journey_cells(rows, tagsets):
+    """Bokashi ao centro; jornada Vega→Flora como expansão. Mutuamente exclusivas."""
+    bok = tagsets["Bokashi"] | tagsets["Cápsula"]
+    vega, flora, guard, mix = (tagsets["Vega"], tagsets["Flora"],
+                               tagsets["Guardião"], tagsets["Mix"])
+    liq = vega | flora | guard
+    cells = {k: [] for k, *_ in _BRIEF_STAGES}
+    for r in rows:
+        cid = r["id"]
+        if cid in bok:
+            if cid not in liq:                          cells["b_so"].append(r)
+            elif cid in vega and cid not in flora:      cells["b_vega"].append(r)
+            elif cid in vega and cid in flora:          cells["b_ciclo"].append(r)
+            else:                                       cells["b_misto"].append(r)
+        elif cid in mix:                                cells["mix"].append(r)
+        elif cid in liq:                                cells["liq"].append(r)
+        else:                                           cells["sem_tag"].append(r)
+    return cells
+
+def _cell_csv(rows):
+    """Formata as linhas de uma célula no mesmo padrão do _export_segments."""
+    if not rows:
+        return b"", 0
+    df = pd.DataFrame(rows)
+    if "id" in df.columns:
+        df = df.drop(columns=["id"])
+    df = df.drop_duplicates(subset=["email"], keep="first")
+    df = df[df["opt_in"].isin(_OPT_IN_VALID_LIST)]
+    df = df.rename(columns={
+        "first_name": "Nome", "last_name": "Sobrenome",
+        "city": "Cidade", "state": "Estado",
+        "tier": "Tier", "rfm_score": "RFM Score", "opt_in": "Opt-In",
+        "ultimo_pedido": "Ultimo Pedido", "revenue_vnda": "Receita VNDA",
+        "total_compras": "Total Compras",
+    })
+    df["Ultimo Pedido"] = (pd.to_datetime(df["Ultimo Pedido"], errors="coerce")
+                           .dt.strftime("%d/%m/%Y").fillna(""))
+    df["Cidade"] = df["Cidade"].fillna("").replace("None", "")
+    df["Estado"] = df["Estado"].fillna("").replace("None", "")
+    return df.to_csv(index=False).encode("utf-8"), len(df)
+
 _SORT_OPTIONS = {
     "RFM Score (maior primeiro)":      ("rfm_score",     True),
     "Receita VNDA (maior primeiro)":   ("revenue_vnda",  True),
@@ -585,7 +694,8 @@ if st.session_state.get("music_on", False):
 """, height=24)
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
-tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Contatos", "RD Station", "Playbook"])
+tab5, tab1, tab2, tab3, tab4 = st.tabs(
+    ["Briefing Sem 1 Jul 26", "Overview", "Contatos", "RD Station", "Playbook"])
 
 # ─── OVERVIEW ────────────────────────────────────────────────────────────────
 with tab1:
@@ -1240,3 +1350,116 @@ Campeão → Leal → Em risco → Promissor → Atenção → Hibernando V3/V4 
 **Nunca importar** contatos com `Opt-in = No` ou `(vazio)` — risco LGPD.
 **Atualizar os CSVs** aqui mensalmente: clicar em *Preparar exportações* no início de cada mês.
 """)
+
+# ─── BRIEFING SEM 1 JUL 26 ────────────────────────────────────────────────────
+with tab5:
+    st.markdown("# Briefing — Semana 1 · Julho 2026")
+    st.caption("Plano de reativação por ondas + jornada de cultivo. Documento vivo (WIP).")
+    st.markdown("---")
+
+    # ── 1 · As duas ondas + higienização ──
+    st.markdown("## 1 · As duas ondas quentes")
+    st.markdown("""
+Vamos disparar pra **toda a base com opt-in (57.154 contatos)** em **ondas**, do público
+mais quente pro mais frio. O motivo é **aquecer o domínio**: Gmail/Yahoo filtram por
+engajamento, então um blast único numa base fria cairia em spam e queimaria a entrega.
+Mandando primeiro pra quem mais engaja, construímos reputação antes de chegar nos frios.
+
+| Onda | Tiers (RFM) | Quem é | Contatos |
+|------|-------------|--------|---------:|
+| **Onda 1** | Campeão · Leal · Novo | Clientes **ativos** (compraram recente) | 551 |
+| **Onda 2** | Em risco · Promissor · Atenção | Clientes **esfriando** (foram bons, sumidos 1–2+ anos) | 2.969 |
+| Onda 3 | Hibernando | Sumidos há 2+ anos | 14.012 |
+| Onda 4 | Lead | Nunca compraram | 39.622 |
+
+**Este briefing cobre as Ondas 1 e 2** (as quentes, ~3.500 pessoas) — o seed de aquecimento.
+As Ondas 3 e 4 (frias, ~53k) vêm depois.
+
+### Higienização — 1 feita, falta 1
+- ✅ **Feita (grátis):** normalização, dedup, sintaxe, descartáveis, role-based, correção de
+  typos e **checagem de MX** (domínio morto). Resultado nas 4 ondas: **56.477 válidos ·
+  372 suspeitos · 305 removidos** (domínio morto).
+- ⏳ **Falta (paga):** validação **de caixa (SMTP)** dos frios (Ondas 3+4, ~53k) num validador
+  — **MillionVerifier (~US$48)** ou ZeroBounce. Confirma se a caixa existe de verdade, o que a
+  checagem grátis não pega. **As Ondas 1 e 2 (quentes) NÃO precisam disso** e já podem disparar.
+""")
+    st.markdown("---")
+
+    # ── 2 · Jornada do cultivo ──
+    st.markdown("## 2 · A jornada do cultivo (Vega → Flora)")
+    st.info("🚧 **WIP** — hoje é segmentação manual; a lógica abaixo vai virar **automação temporizada no RD Station**.")
+    st.markdown("""
+Os produtos seguem o **ciclo de cultivo**, com dieta **N-P-K** diferente por fase:
+
+- **🟤 Solo:** Mix de Plantio (substrato) + **Bokashi** (alimenta e condiciona o solo)
+- **🟢 Planta (nutrição líquida):**
+  - **Vega — Nutrição Básica** → faz **crescer** (N alto: folha, caule, raiz)
+  - **Flora — Flor e Fruto** → faz **florir e frutificar** (P e K altos, N baixo)
+  - **Guardião** → **protege** de pragas (transversal ao ciclo)
+
+**A sacada:** Vega e Flora são **sequenciais no tempo** — quem faz Vega transiciona pra Flora
+em algumas semanas. Então o cross-sell não é "compre mais", é **"avance pra próxima fase"**, e
+é **previsível no tempo**. Por isso vira automação: o e-mail de Flora disparado *X semanas após
+a compra de Vega*, caindo bem na hora em que a planta começa a florir.
+""")
+    st.markdown("---")
+
+    # ── 3 · Bokashi ao centro ──
+    st.markdown("## 3 · Bokashi ao centro")
+    st.info("🚧 **WIP** — a reposição do Bokashi vai virar **automação de recompra no RD** (gatilho por tempo desde a última compra).")
+    st.markdown("""
+O **Bokashi é o carro-chefe** — ~**65% das duas ondas** já compraram. Sendo consumível,
+**o próximo pedido mais provável de quem compra Bokashi é... mais Bokashi.** A estrutura é em
+duas camadas:
+
+- **Camada 1 · Reposição do Bokashi** (o certo): a receita recorrente mais previsível. Numa base
+  que lapsou, o estoque já acabou → **reabastecer é o gancho de reativação natural**.
+- **Camada 2 · A jornada** (a expansão): Vega → Flora → Guardião, aumentando o ticket ao avançar
+  o cliente no ciclo.
+
+Cada e-mail pra quem compra Bokashi tem **dois níveis**: o **lead** reabastece o herói, e o
+**CTA secundário** convida pra próxima fase. O Bokashi **nunca fica de fora** — é sempre o lead
+pra quem já compra.
+
+**Ofertas (2 mecânicas):** *Reposição 3x2* (3× Bokashi, estoca o herói) · *Kit ciclo 3x2*
+(Vega + Flora + Guardião, o cultivo completo).
+""")
+    st.markdown("---")
+
+    # ── 4 · Plano de disparo + downloads ──
+    st.markdown("## 4 · Plano de disparo por estágio")
+    st.warning("💡 Os **estágios e ganchos abaixo são SUGESTÃO** — ajuste a copy/oferta como preferir. Tom aspiracional (nada incisivo).")
+    st.caption("Clique para cruzar as tags de produto com as ondas e liberar os CSVs por estágio (já com opt-in válido + dedup).")
+
+    if st.button("🔄  Preparar listas do briefing", key="btn_brief"):
+        with st.spinner("Cruzando tags de produto com as ondas… (10–20 seg na 1ª vez)"):
+            tagsets = {k: _load_tag_ids(t) for k, t in _LIVE_PROD_TAGS.items()}
+            st.session_state["brief_o1"] = _build_journey_cells(
+                _load_onda_full(("Campeão", "Leal", "Novo")), tagsets)
+            st.session_state["brief_o2"] = _build_journey_cells(
+                _load_onda_full(("Em risco", "Promissor", "Atenção")), tagsets)
+
+    def _render_onda(titulo, key, prefixo):
+        st.markdown(f"### {titulo}")
+        cells = st.session_state.get(key)
+        if not cells:
+            st.info("Clique em **Preparar listas do briefing** acima para gerar os CSVs.")
+            return
+        for ck, rotulo, papel, gancho in _BRIEF_STAGES:
+            csv_b, n = _cell_csv(cells.get(ck, []))
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.markdown(f"**{rotulo}** — {n:,} contatos".replace(",", "."))
+                st.caption(f"Papel: {papel}")
+                st.markdown(f"> _{gancho}_")
+            with c2:
+                if n:
+                    st.download_button("⬇️ CSV", csv_b, f"{prefixo}_{ck}.csv",
+                                       "text/csv", key=f"dl_{key}_{ck}",
+                                       use_container_width=True)
+                else:
+                    st.caption("—")
+            st.markdown("<hr style='margin:8px 0'>", unsafe_allow_html=True)
+
+    _render_onda("Onda 2 — Reativação (Em risco · Promissor · Atenção)", "brief_o2", "onda2")
+    _render_onda("Onda 1 — Ativos (Campeão · Leal · Novo)", "brief_o1", "onda1")
